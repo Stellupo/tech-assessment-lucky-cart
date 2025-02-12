@@ -19,5 +19,6 @@
       "totalPriceAti": 49.80
     }
   ],
-  "total": 180
+  "total": 180,
+  "stringToCompare": "20"
 }

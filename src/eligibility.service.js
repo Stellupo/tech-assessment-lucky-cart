@@ -1,8 +1,6 @@
 class EligibilityService {
   findValueFromNestedobject(obj, conditionKey) {
-    console.log("labels", conditionKey, obj);
     const resultValue = this.deepGetByPaths(obj, conditionKey);
-    console.log("dig", resultValue);
     return resultValue;
   }
 
@@ -84,9 +82,13 @@ class EligibilityService {
     return comparisonResults.includes(true);
   }
 
+  convertToString(item) {
+    return typeof item === "number" ? String(item) : item;
+  }
+
   /**
    * @param conditions
-   * @param conditionKey
+   * @param cart
    */
   checkConditionByKey(cart, conditions, conditionKey) {
     const valuesFromCart = this.findValueFromNestedobject(cart, conditionKey);
@@ -108,11 +110,12 @@ class EligibilityService {
       multipleConditionsOperators.includes(operatorInCondition)
     );
 
-    // If we have multiple operators, we need to check condition differently
+    // Handling IN, OR, AND operators
     if (
       valueFromCriteria &&
       multipleConditionsOperators.includes(operatorInCondition)
     ) {
+      // AND
       if (operatorInCondition === "and") {
         const validity = [];
         for (const [key, value] of Object.entries(valueFromCriteria["and"])) {
@@ -122,7 +125,9 @@ class EligibilityService {
         }
         console.log("validity and", validity, !validity.includes(false));
         return !validity.includes(false);
-      } else if (operatorInCondition === "or") {
+      }
+      // OR
+      else if (operatorInCondition === "or") {
         const validity = [];
         for (const [key, value] of Object.entries(valueFromCriteria["or"])) {
           validity.push(
@@ -131,16 +136,24 @@ class EligibilityService {
         }
         console.log("validity or", validity, validity.includes(true));
         return validity.includes(true);
-      } else if (operatorInCondition === "in") {
+      }
+      // IN
+      else if (operatorInCondition === "in") {
         console.log(
           "validity in",
-          Object.values(valueFromCriteria)[0],
+          valueFromCriteria[operatorInCondition],
+          Object.values(valueFromCriteria),
           valuesFromCart,
           Object.values(valueFromCriteria)[0].includes(valuesFromCart)
         );
-        return valuesFromCart.includes(Object.values(valueFromCriteria)[0]);
+        // Cart valid if we have at least one of the values from the criteria in the cart values
+        const cartIsValid = valueFromCriteria[operatorInCondition].some(
+          (item) => valuesFromCart.includes(item)
+        );
+        return cartIsValid;
       }
     }
+    // Handling GT, LT, GTE, LTE operators
     // If we have a comparison operator only, it will only have one key like {gt: 50} => ['gt']
     else if (
       valueFromCriteria &&
@@ -149,7 +162,6 @@ class EligibilityService {
       console.log(
         "condition 1 only",
         valuesFromCart[0],
-        // result,
         Object.values(valueFromCriteria)[0]
       );
       const result = this.compareCartWithCriteria(
@@ -159,10 +171,21 @@ class EligibilityService {
       );
       return result;
     }
-    // We only have to check if the value equals the basic condition
+    // We only have to check if the value equals the condition
     else {
       console.log("basic condition", valueFromCriteria, valuesFromCart);
-      return valueFromCriteria === valuesFromCart[0];
+      // The cart is formatted like {quantity:1}
+      if (valuesFromCart.length === 1)
+        return (
+          this.convertToString(valueFromCriteria) ===
+          this.convertToString(valuesFromCart[0])
+        );
+      // The valuesFromCart is formatted like {products:[{quantity:1}, {quantity: 2}]}
+      else {
+        return valuesFromCart
+          .map((item) => String(item))
+          .includes(this.convertToString(valueFromCriteria));
+      }
     }
   }
 

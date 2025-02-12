@@ -6,6 +6,7 @@
   "products.productId": {
     "in": ["5449000054227", "777777777"]
   },
+  "products.quantity": 2,
   "date": {
     "and": {
       "gt": "2021-01-01T00:00:00.000Z",
@@ -17,5 +18,6 @@
       "gt": 190,
       "lt": 250
     }
-  }
+  },
+  "stringToCompare": 20
 }
