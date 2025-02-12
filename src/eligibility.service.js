@@ -1,34 +1,13 @@
 class EligibilityService {
-  findValueFromNestedobject(obj, conditionKey) {
-    const resultValue = this.deepGetByPaths(obj, conditionKey);
-    return resultValue;
-  }
-
-  // Dig inside nested objects and return the found value
-  deepGet(obj, keys) {
-    console.log("this.deepGet", obj[keys[0]], keys, obj, keys.slice(1));
-    // If we have an array as a value of a key inside our cart : { products: [{ productId: value }, { productId: value2}] }
-    // We return an array of the values corresponding to the key [value, value2]
-    if (Array.isArray(obj[keys[0]])) {
-      const searchValues = [];
-      obj[keys[0]].forEach((item) =>
-        searchValues.push(
-          keys.slice(1).reduce((xs, x) => xs?.[x] ?? null, item)
-        )
-      );
-      console.log("search,", searchValues);
-      return searchValues;
-    }
-    // If we have a object as a value of a key inside our cart : { products: { productId: value } }
-    // We return the value directly inside an array [value]
-    else {
-      console.log("else");
-      return [keys.reduce((xs, x) => xs?.[x] ?? null, obj)];
-    }
-  }
-
-  deepGetByPaths(obj, path) {
-    console.log("obj", path);
+  /**
+   * From a path string from criteria (ex: 'products.productId'), find the sub-object value inside our cart
+   * Ex: path = 'products.productId', cart = { products: [{ productId: value }, { productId: value2}] } => [value, value2] is returned
+   *
+   * @param obj - our cart
+   * @param {string} path
+   * @returns {[]}
+   **/
+  findSubObjectValueFromPath(obj, path) {
     return this.deepGet(
       obj,
       path
@@ -38,39 +17,73 @@ class EligibilityService {
     );
   }
 
+  /**
+   * From an array of strings (ex: ['product', 'productId']), dig into obj key by key (ex: obj.product => obj.product.productId)
+   *
+   * @param obj - our cart
+   * @param {string[]} keys
+   * @returns {[]}
+   **/
+  deepGet(obj, keys) {
+    // If we have an array as a value of a key inside our cart : { products: [{ productId: value }] }
+    // Only works when we have one level of depth
+    if (Array.isArray(obj[keys[0]])) {
+      const searchValues = [];
+      obj[keys[0]].forEach((item) =>
+        searchValues.push(
+          keys.slice(1).reduce((xs, x) => xs?.[x] ?? null, item)
+        )
+      );
+      return searchValues;
+    }
+    // If we have a object as a value of a key inside our cart : { products: { productId: value } }
+    else {
+      return [keys.reduce((xs, x) => xs?.[x] ?? null, obj)];
+    }
+  }
+
   isValidDate(dateString) {
     const date = new Date(dateString);
     return !isNaN(date.getTime());
   }
 
-  compareCartWithCriteria(keyCondition, valueCondition, valuesFromCart) {
-    console.log("inside", keyCondition, valueCondition, valuesFromCart);
+  convertToString(item) {
+    return typeof item === "number" ? String(item) : item;
+  }
+
+  /**
+   * Compare the condition value and each value of the cart regarding the operator.
+   * If one value is a date, we apply a different comparison to get relevent results.
+   * Otherwise, we compare the values as number.
+   *
+   * @param {string} operator
+   * @param valueCondition 
+   * @param {[]} valuesFromCart
+   * @returns {[]}
+   **/
+  compareCartWithCriteria(operator, valueCondition, valuesFromCart) {
     const comparisonResults = [];
 
     valuesFromCart.forEach((valueFromCart) => {
-      if (keyCondition === "gt") {
-        console.log("gt");
+      if (operator === "gt") {
         const result = this.isValidDate(valueFromCart)
           ? new Date(valueFromCart).getTime() >
             new Date(valueCondition).getTime()
           : Number(valueFromCart) > Number(valueCondition);
         comparisonResults.push(result);
-      } else if (keyCondition === "lt") {
-        console.log("lt");
+      } else if (operator === "lt") {
         const result = this.isValidDate(valueFromCart)
           ? new Date(valueFromCart).getTime() <
             new Date(valueCondition).getTime()
           : Number(valueFromCart) < Number(valueCondition);
         comparisonResults.push(result);
-      } else if (keyCondition === "gte") {
-        console.log("gte");
+      } else if (operator === "gte") {
         const result = this.isValidDate(valueFromCart)
           ? new Date(valueFromCart).getTime() >=
             new Date(valueCondition).getTime()
           : Number(valueFromCart) >= Number(valueCondition);
         comparisonResults.push(result);
-      } else if (keyCondition === "lte") {
-        console.log("lte");
+      } else if (operator === "lte") {
         const result = this.isValidDate(valueFromCart)
           ? new Date(valueFromCart).getTime() <=
             new Date(valueCondition).getTime()
@@ -82,33 +95,25 @@ class EligibilityService {
     return comparisonResults.includes(true);
   }
 
-  convertToString(item) {
-    return typeof item === "number" ? String(item) : item;
-  }
 
   /**
-   * @param conditions
+   * Check if a cart element value fulfill the condition from the criteria.
+   * The comparison complexity depends on the operators inside the criteria (or, in , gt, etc.)
+   *
    * @param cart
+   * @param criteria
+   * @param criteriaKey
+   * @returns {boolean}
    */
-  checkConditionByKey(cart, conditions, conditionKey) {
-    const valuesFromCart = this.findValueFromNestedobject(cart, conditionKey);
+  checkConditionByKey(cart, criteria, criteriaKey) {
+    const valuesFromCart = this.findSubObjectValueFromPath(cart, criteriaKey);
 
     const valueOperators = ["gt", "lt", "gte", "lte"];
     const multipleConditionsOperators = ["in", "or", "and"];
 
-    const valueFromCriteria = conditions[conditionKey];
+    const valueFromCriteria = criteria[criteriaKey];
 
     const operatorInCondition = Object.keys(valueFromCriteria)[0];
-
-    console.log(
-      "check condiciotn",
-      valuesFromCart,
-      conditionKey,
-      valueFromCriteria,
-      operatorInCondition,
-      valueOperators.includes(operatorInCondition),
-      multipleConditionsOperators.includes(operatorInCondition)
-    );
 
     // Handling IN, OR, AND operators
     if (
@@ -118,69 +123,56 @@ class EligibilityService {
       // AND
       if (operatorInCondition === "and") {
         const validity = [];
-        for (const [key, value] of Object.entries(valueFromCriteria["and"])) {
+        for (const [key, value] of Object.entries(
+          valueFromCriteria[operatorInCondition]
+        )) {
           validity.push(
             this.compareCartWithCriteria(key, value, valuesFromCart)
           );
         }
-        console.log("validity and", validity, !validity.includes(false));
         return !validity.includes(false);
       }
       // OR
       else if (operatorInCondition === "or") {
         const validity = [];
-        for (const [key, value] of Object.entries(valueFromCriteria["or"])) {
+        for (const [key, value] of Object.entries(
+          valueFromCriteria[operatorInCondition]
+        )) {
           validity.push(
             this.compareCartWithCriteria(key, value, valuesFromCart)
           );
         }
-        console.log("validity or", validity, validity.includes(true));
         return validity.includes(true);
       }
       // IN
       else if (operatorInCondition === "in") {
-        console.log(
-          "validity in",
-          valueFromCriteria[operatorInCondition],
-          Object.values(valueFromCriteria),
-          valuesFromCart,
-          Object.values(valueFromCriteria)[0].includes(valuesFromCart)
-        );
-        // Cart valid if we have at least one of the values from the criteria in the cart values
-        const cartIsValid = valueFromCriteria[operatorInCondition].some(
+        // Condition valid if we have at least one of the values from the criteria in the cart values
+        const cartElementIsValid = valueFromCriteria[operatorInCondition].some(
           (item) => valuesFromCart.includes(item)
         );
-        return cartIsValid;
+        return cartElementIsValid;
       }
     }
     // Handling GT, LT, GTE, LTE operators
-    // If we have a comparison operator only, it will only have one key like {gt: 50} => ['gt']
     else if (
       valueFromCriteria &&
       valueOperators.includes(operatorInCondition)
     ) {
-      console.log(
-        "condition 1 only",
-        valuesFromCart[0],
-        Object.values(valueFromCriteria)[0]
-      );
-      const result = this.compareCartWithCriteria(
+      return this.compareCartWithCriteria(
         operatorInCondition,
-        Object.values(valueFromCriteria)[0],
+        valueFromCriteria[operatorInCondition],
         valuesFromCart
       );
-      return result;
     }
     // We only have to check if the value equals the condition
     else {
-      console.log("basic condition", valueFromCriteria, valuesFromCart);
-      // The cart is formatted like {quantity:1}
+      // The cart element value is a simple one (ex: cart = {quantity:1})
       if (valuesFromCart.length === 1)
         return (
           this.convertToString(valueFromCriteria) ===
           this.convertToString(valuesFromCart[0])
         );
-      // The valuesFromCart is formatted like {products:[{quantity:1}, {quantity: 2}]}
+      // The cart element value is an array (ex : cart = {products:[{quantity:1}, {quantity: 2}]} )
       else {
         return valuesFromCart
           .map((item) => String(item))
@@ -199,24 +191,25 @@ class EligibilityService {
    */
   isEligible(cart, criteria) {
     const criteriaKeys = Object.keys(criteria);
+    const cartKeys = Object.keys(cart);
+
     // Without criteria, the cart is always eligible
     if (
-      (criteriaKeys.lenght == 0 && Object.keys(cart).lenght == 0) ||
-      (criteriaKeys.lenght == 0 && Object.keys(cart).lenght > 0)
+      (criteriaKeys.lenght == 0 && cartKeys.lenght == 0) ||
+      (criteriaKeys.lenght == 0 && cartKeys.lenght > 0)
     ) {
       return true;
     }
 
     // Without cart and with criteria, the cart is always not eligible
-    if (criteriaKeys.lenght > 0 && Object.keys(cart).lenght == 0) return false;
+    if (criteriaKeys.lenght > 0 && cartKeys.lenght == 0) return false;
 
-    // Store the validity of each condition
+    // Store the validity of each condition into an array
     const allValidities = [];
 
     // Check for each condition of the criteria if the corresponding one in the chart fullfil it
     criteriaKeys.forEach((item) => {
       allValidities.push(this.checkConditionByKey(cart, criteria, item));
-      console.log("All ", allValidities);
     });
 
     return !allValidities.includes(false);
