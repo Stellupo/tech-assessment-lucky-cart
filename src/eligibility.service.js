@@ -8,7 +8,7 @@ class EligibilityService {
    * @returns {[]}
    **/
   findSubObjectValueFromPath(obj, path) {
-    return this.deepGet(
+    return this.digInObjByKeys(
       obj,
       path
         .replace(/\[([^\[\]]*)\]/g, ".$1.")
@@ -24,7 +24,7 @@ class EligibilityService {
    * @param {string[]} keys
    * @returns {[]}
    **/
-  deepGet(obj, keys) {
+  digInObjByKeys(obj, keys) {
     // If we have an array as a value of a key inside our cart : { products: [{ productId: value }] }
     // Only works when we have one level of depth
     if (Array.isArray(obj[keys[0]])) {
